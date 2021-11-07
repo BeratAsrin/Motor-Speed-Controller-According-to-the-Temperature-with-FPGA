@@ -1,0 +1,162 @@
+module project(alarm_on_off,A,B,C,D,E,F,G,DP,segment_power,segment_power2,segment_power3,segment_power4,clk,temp_in_1,temp_in_2,temp_in_3,motor,rgb_red, rgb_blue, rgb_green,buzzer);
+
+// Sıcaklığa göre PWM sinyal ile DC motor sürdürme projesi.
+
+input clk; // 50 MHz Clock.
+input temp_in_1,temp_in_2,temp_in_3; // Arduinodan gelen sıcaklık verileri.
+input alarm_on_off; // Buzzer alarmını aktif veya pasif hale getirmek için kullanılan input. Switch ileri ise alarm aktif, geri ise alarm pasif.
+
+output motor; // DC motor için çıkış.
+output segment_power,segment_power2,segment_power3,segment_power4,A,B,C,D,E,F,G,DP; // Segmentler ve güç çıkışları.
+output rgb_red, rgb_blue, rgb_green; // RGB led çıkışları.
+output buzzer; // Sıcaklık uyarısı için buzzer ile alarm çıkışı.
+
+reg buzzer;
+reg rgb_red, rgb_blue, rgb_green;
+reg A,B,C,D,E,F,G,DP;
+reg segment_power,segment_power2,segment_power3,segment_power4;
+reg motor;
+reg [19:0] counter; // Motoru pwm sinyal ile kontrol etmek için kullanılan register.
+reg [19:0] buzzercounter; // Buzzeri pwm sinyal ile kontrol edebilmek için kullanılan register.
+
+// Initial bloğunu kullanarak projeye başlangıç değerlerimi belirliyorum.
+initial begin
+	// Kartım Active LOW olduğu için 1 değeri atayarak öncelikle tüm segmentlerin gücünü kapatıyorum.
+	segment_power <= 1; 
+	segment_power2 <= 1;
+	segment_power3 <= 1;
+	segment_power4 <= 1;
+	// Counterlerimi 0 değeriyle başlatıyorum
+	buzzercounter <= 0;
+	counter <= 0;
+	// Yine Active LOW olduğu için tüm segmentelerimi kapalı konuma getiriyorum.
+	A <= 1;
+	B <= 1;
+	C <= 1;
+	D <= 1;
+	E <= 1;
+	F <= 1;
+	G <= 1;
+	DP <= 1;
+	// Dışarıdan bağladığım RGB ledimin tüm renk pinlerine voltaj veriyorum ki RGB içindeki ışık saçan diyotlar başlangıçta iletimde değil kesimde olsun.
+	// RGB dışarıdan bağlı bir eleman olduğu için Active High olarak ayarladım o nedense voltaj vermek istediğimde 1, ground vermek istediğimde 0 kullanıyorum.
+	rgb_red = 1;
+	rgb_blue = 1;
+	rgb_green = 1;
+end
+
+// Her bir clock sinyalinin pozitif kenarında işlem yapabilmek için always bloğu açıyorum
+always @(posedge clk)begin
+	// Sensörden gelen sıcaklık verisi 20 derecenin altındaysa:
+	if (temp_in_1)begin
+		// Sıcaklık kritik seviyede olmadığı için alarm kapalı.
+		buzzer = 1;
+		// En soldaki digite güç veriyorum ancak diğerleri kapalı.
+		segment_power <= 0;
+		segment_power2 <= 1;
+		segment_power3 <= 1;
+		segment_power4 <= 1;
+		// Motorun birinci modda çalıştığını göstermek için aktif olan digitte " 1 " yazdırıyorum.
+		A <= 1;
+		B <= 0;
+		C <= 0;
+		D <= 1;
+		E <= 1;
+		F <= 1;
+		G <= 1;
+		DP <= 1;
+		// Sıcaklığın normal seviyelerde olduğunu kullanıcıya RGB'de yeşil ışık ile bildiriyorum.
+		rgb_red = 1;
+		rgb_blue = 1;
+		rgb_green = 0;
+		// Sıcaklık normal olduğu için motoru kapalı tutuyorum.
+		motor = 0;
+	end
+	// Sensörden gelen sıcaklık verisi 20 derece ile 22 derece arasındaysa:
+	else if (temp_in_2)begin
+		// Sıcaklık kritik seviyede olmadığı için alarm kapalı
+		buzzer = 1;
+		// Soldan ikinci digite güç veriyorum ancak diğerleri kapalı.
+		segment_power <= 1;
+		segment_power2 <= 0;
+		segment_power3 <= 1;
+		segment_power4 <= 1;
+		// Motorun ikinci modda ve orta hızda çalıştığını göstermek için aktif olan digitte " 2 " yazdırıyorum.
+		A <= 0;
+		B <= 0;
+		C <= 1;
+		D <= 0;
+		E <= 0;
+		F <= 1;
+		G <= 0;
+		DP <= 1;
+		// Sıcaklığın yükselmeye başladığını ancak hala kritik olmadığını göstermek için RGB'yi turuncu yakıyorum.
+		rgb_red = 0;
+		rgb_blue = 1;
+		rgb_green = 0;
+		// %50 duty cycle'ye sahip bir PWM sinyali üreterek motoru yarı hızda çalıştırıyorum.
+		if (counter == 99999)
+			counter = 0;
+		else
+			counter = counter + 1;
+	motor = (counter < 50000) ? 1 : 0;
+	end
+	// Sensörden gelen sıcaklık verisi 22 derecenin üstündeyse:
+	else if (temp_in_3)begin
+		// Soldan üçünci digite güç veriyorum ancak diğerleri kapalı.
+		segment_power <= 1;
+		segment_power2 <= 1;
+		segment_power3 <= 0;
+		segment_power4 <= 1;
+		// Motorun üçüncü ve en hızlı modda çalıştığını göstermek için aktif olan digitte " 3 " yazdırıyorum.
+		A <= 0;
+		B <= 0;
+		C <= 0;
+		D <= 0;
+		E <= 1;
+		F <= 1;
+		G <= 0;
+		DP <= 1;
+		// Sıcaklığın kritik seviyeye ulaştığını belirtmek için RGB'yi kırmızı yakıyorum.
+		rgb_red = 0;
+		rgb_blue = 1;
+		rgb_green = 1;
+		// Motora direkt true veriyorum ki mümkün olan son hızda çalışsın.
+		motor = 1;
+		// Sıcaklık kritik seviyede olduğu için buzzer alarm veriyor.
+		if (~alarm_on_off) begin // Switchler Active LOW olduğu için " ~ " kullanılmıştır.
+			if (buzzercounter == 99999)
+				buzzercounter = 0;
+			else
+				buzzercounter = buzzercounter + 1;
+			buzzer = (buzzercounter < 10000) ? 0 : 1;
+		end
+		else begin
+			buzzer = 1; // Eğer alarm elle switchten kapatıldıysa alarm çalmaz. " 1 " alarmı kapatır çünkü buzzer Active LOW şekilde bağlıdır kartta.
+		end
+	end
+	// Sistemde hata olması veya sensörden veri okunamaması durumunda:
+	else begin
+		buzzer = 1; // Herhangi bir hata ya da gecikme durumunda buzzerimin ötmemesi için buzzerimi kapatıyorum.
+		// Sistemin "hata verdiğini veya mod geçişinde olduğunu göstermek için segmentlerime güç veriyorum"
+		segment_power <= 0;
+		segment_power2 <= 0;
+		segment_power3 <= 0;
+		segment_power4 <= 0;
+		// Sistemin hata durumunda veya mod geçişinde olduğunda tüm segmentlerde " - " ifadesinin gözükmesini sağlıyorum.
+		A <= 1;
+		B <= 1;
+		C <= 1;
+		D <= 1;
+		E <= 1;
+		F <= 1;
+		G <= 0;
+		DP <= 1;
+		// Bu bekleme anında güzel bir görüntü oluşması için RGB ledimden dışarıya "mavi" ışık veriyorum.
+		rgb_red = 1;
+		rgb_blue = 0;
+		rgb_green = 1;
+	end
+end
+
+endmodule

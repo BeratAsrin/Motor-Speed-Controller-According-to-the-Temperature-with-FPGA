@@ -1,0 +1,7 @@
+module project(led);
+
+output led;
+
+assign led = 1;
+
+endmodule
